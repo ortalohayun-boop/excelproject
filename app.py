@@ -7,8 +7,12 @@ from flask_cors import CORS
 from pdf2image import convert_from_bytes
 import pytesseract
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
+
+@app.route('/')
+def index():
+    return send_file('index.html')
 
 def translate_building_part(text):
     replacements = {
@@ -118,4 +122,5 @@ def process_pdfs():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
