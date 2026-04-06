@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מעבד תעודות בטון</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --accent: #f0a500;
+    --accent2: #e05c00;
+    --text: #e6edf3;
+    --muted: #8b949e;
+  }
+
+  body {
+    font-family: 'Heebo', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background-image: radial-gradient(ellipse at 20% 50%, rgba(240,165,0,0.05) 0%, transparent 60%),
+                      radial-gradient(ellipse at 80% 20%, rgba(224,92,0,0.05) 0%, transparent 50%);
+  }
+
+  .container {
+    width: 100%;
+    max-width: 680px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 3rem;
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .logo-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    margin-top: 0.5rem;
+    font-weight: 300;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(240,165,0,0.05);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .drop-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .drop-sub {
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+
+  .file-list {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(240,165,0,0.08);
+    border: 1px solid rgba(240,165,0,0.2);
+    border-radius: 8px;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .file-item .file-icon { font-size: 1.1rem; }
+  .file-item .file-name { flex: 1; }
+  .file-item .file-size { color: var(--muted); font-size: 0.8rem; }
+
+  .btn {
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: 'Heebo', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 1.5rem;
+  }
+
+  .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .progress-wrap {
+    display: none;
+    margin-top: 1.5rem;
+  }
+
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 99px;
+    width: 0%;
+    transition: width 0.3s ease;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .result {
+    display: none;
+    background: rgba(0,200,100,0.08);
+    border: 1px solid rgba(0,200,100,0.25);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-top: 1.5rem;
+  }
+
+  .result-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+  .result-title { font-size: 1.1rem; font-weight: 600; color: #4ade80; }
+  .result-sub { color: var(--muted); font-size: 0.875rem; margin-top: 0.25rem; }
+
+  .error-box {
+    display: none;
+    background: rgba(255,80,80,0.08);
+    border: 1px solid rgba(255,80,80,0.25);
+    border-radius: 12px;
+    padding: 1.25rem;
+    color: #f87171;
+    font-size: 0.9rem;
+    margin-top: 1.5rem;
+    text-align: center;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .stat-num {
+    font-size: 1.8rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .stat-label { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 2rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🏗️</div>
+      <h1>תעודות בטון</h1>
+    </div>
+    <p class="subtitle">העלה קבצי PDF וקבל טבלת אקסל מסודרת תוך שניות</p>
+  </header>
+
+  <div class="card">
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" multiple accept=".pdf">
+      <div class="drop-icon">📄</div>
+      <div class="drop-title">גרור קבצי PDF לכאן</div>
+      <div class="drop-sub">או לחץ לבחירת קבצים</div>
+    </div>
+
+    <div class="file-list" id="fileList"></div>
+
+    <div class="stats" id="stats" style="display:none">
+      <div class="stat">
+        <div class="stat-num" id="statCount">0</div>
+        <div class="stat-label">קבצים נבחרו</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="statSize">0</div>
+        <div class="stat-label">MB סה"כ</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="statTime">~0</div>
+        <div class="stat-label">דקות משוערות</div>
+      </div>
+    </div>
+
+    <button class="btn" id="processBtn" disabled onclick="processFiles()">
+      ⚡ עבד וייצא לאקסל
+    </button>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressText">מעבד קבצים...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <div class="result" id="result">
+      <div class="result-icon">✅</div>
+      <div class="result-title">הקובץ מוכן!</div>
+      <div class="result-sub" id="resultSub"></div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <footer>מערכת עיבוד תעודות בטון · ISOTEST</footer>
+</div>
+
+<script>
+  // החלף את הכתובת הזו לכתובת השרת שלך ב-Render
+  const SERVER_URL = 'https://YOUR-APP-NAME.onrender.com/process';
+
+  let selectedFiles = [];
+
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    handleFiles([...e.dataTransfer.files].filter(f => f.name.endsWith('.pdf')));
+  });
+
+  fileInput.addEventListener('change', () => handleFiles([...fileInput.files]));
+
+  function handleFiles(files) {
+    selectedFiles = files;
+    const list = document.getElementById('fileList');
+    list.innerHTML = '';
+
+    files.forEach(f => {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.innerHTML = `<span class="file-icon">📄</span>
+        <span class="file-name">${f.name}</span>
+        <span class="file-size">${(f.size/1024/1024).toFixed(2)} MB</span>`;
+      list.appendChild(item);
+    });
+
+    const totalMB = files.reduce((s, f) => s + f.size, 0) / 1024 / 1024;
+    const estMin = Math.ceil(files.length * 15 / 60);
+
+    document.getElementById('statCount').textContent = files.length;
+    document.getElementById('statSize').textContent = totalMB.toFixed(1);
+    document.getElementById('statTime').textContent = '~' + estMin;
+    document.getElementById('stats').style.display = files.length ? 'grid' : 'none';
+    document.getElementById('processBtn').disabled = files.length === 0;
+
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('errorBox').style.display = 'none';
+  }
+
+  async function processFiles() {
+    if (!selectedFiles.length) return;
+
+    const btn = document.getElementById('processBtn');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const progressPct = document.getElementById('progressPct');
+
+    btn.disabled = true;
+    progressWrap.style.display = 'block';
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('errorBox').style.display = 'none';
+
+    // אנימציה של progress
+    let pct = 0;
+    const interval = setInterval(() => {
+      pct = Math.min(pct + Math.random() * 3, 90);
+      progressFill.style.width = pct + '%';
+      progressPct.textContent = Math.round(pct) + '%';
+    }, 500);
+
+    try {
+      const formData = new FormData();
+      selectedFiles.forEach(f => formData.append('files', f));
+
+      progressText.textContent = 'שולח קבצים לשרת...';
+
+      const response = await fetch(SERVER_URL, {
+        method: 'POST',
+        body: formData
+      });
+
+      clearInterval(interval);
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'שגיאה בשרת');
+      }
+
+      progressFill.style.width = '100%';
+      progressPct.textContent = '100%';
+      progressText.textContent = 'מוריד קובץ...';
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'results_concrete_tests.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+
+      document.getElementById('result').style.display = 'block';
+      document.getElementById('resultSub').textContent = `עובדו ${selectedFiles.length} קבצים בהצלחה`;
+
+    } catch (err) {
+      clearInterval(interval);
+      const errorBox = document.getElementById('errorBox');
+      errorBox.style.display = 'block';
+      errorBox.textContent = 'שגיאה: ' + err.message;
+    } finally {
+      btn.disabled = false;
+      progressWrap.style.display = 'none';
+    }
+  }
+</script>
+</body>
+</html>
