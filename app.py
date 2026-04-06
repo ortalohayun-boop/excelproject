@@ -8,6 +8,7 @@ from pdf2image import convert_from_bytes
 import pytesseract
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route('/')
 def index():
@@ -18,6 +19,7 @@ def translate_building_part(text):
         'Tiny': 'קומה',
         'nmi': 'עמוד',
         'nmp': 'עמוד',
+        'ANIP': 'קומה',
         'poy': 'צפון',
         'pom': 'דרום',
         'omy': 'מערב',
@@ -29,9 +31,16 @@ def translate_building_part(text):
         'slab': 'רצפה',
         'roof': 'גג',
         'stair': 'מדרגות',
+        'ANT': '',
+        'Ns': '',
+        'N1z;N': '',
+        'naan': '',
+        'pon': '',
     }
     for eng, heb in replacements.items():
         text = text.replace(eng, heb)
+    # נקה רווחים כפולים
+    text = re.sub(r'\s+', ' ', text).strip()
     return text
 
 def extract_data_from_pdf_bytes(pdf_bytes, filename):
@@ -53,33 +62,45 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
         strength_values = []
 
         for i, line in enumerate(lines):
+
+            # מס' תעודה - 8 ספרות מתחיל ב-20
             if not data["מס' תעודה"]:
                 m = re.search(r'\b(20\d{6})\b', line)
                 if m:
                     data["מס' תעודה"] = m.group(1)
 
+            # תאריכים
             m = re.search(r'(\d{2}/\d{2}/20\d{2})', line)
             if m:
                 dates_found.append((i, m.group(1)))
 
+            # סוג בטון - כל סוג (30, 40, 50, 60 וכו')
             if not data["סוג בטון"]:
-                if re.search(r'60\s*-\s*2', line) or re.search(r'60\s*-[2בB]', line):
-                    data["סוג בטון"] = "B-60"
+                m = re.search(r'\b(\d{2,3})\s*-\s*[2בB]', line)
+                if m and 20 <= int(m.group(1)) <= 120:
+                    data["סוג בטון"] = "B-" + m.group(1)
 
+            # חוזק - שורות עם שני מספרים עשרוניים בתחילה
             m = re.match(r'^(\d{2,3}\.\d)\s+\d{2,3}\.\d', line)
             if m:
                 strength_values.append(float(m.group(1)))
 
+            # חלק המבנה - שורה עם מספר קומה/עמוד
             if not data["חלק המבנה הנוצק"]:
-                if re.search(r'nmi|nmp|Tiny|floor|column', line, re.IGNORECASE) and re.search(r'\d+', line):
+                if re.search(r'nmi|nmp|Tiny|ANIP|floor|column|ANN|NTz', line, re.IGNORECASE) and re.search(r'\d+', line):
                     data["חלק המבנה הנוצק"] = translate_building_part(line.strip())
 
+        # תאריך יציקה = התאריך השני
         if len(dates_found) >= 2:
             data["תאריך יציקה"] = dates_found[1][1]
         elif len(dates_found) == 1:
             data["תאריך יציקה"] = dates_found[0][1]
 
-        if len(strength_values) >= 4:
+        # שיעור חוזק ממוצע - הערך אחרי כל הדגימות
+        # אם 3 דגימות -> ערך 4, אם 4 דגימות -> ערך 5
+        if len(strength_values) >= 5:
+            data["שיעור חוזק ממוצע"] = strength_values[4]
+        elif len(strength_values) >= 4:
             data["שיעור חוזק ממוצע"] = strength_values[3]
         elif strength_values:
             data["שיעור חוזק ממוצע"] = strength_values[-1]
