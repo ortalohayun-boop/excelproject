@@ -17,16 +17,16 @@ def index():
 def translate_building_part(text):
     replacements = {
         'Tiny': 'קומה', 'nmi': 'עמוד', 'nmp': 'עמוד',
-        'ANIP': 'קומה', 'ANN': 'מרום', 'poy': 'צפון',
-        'pom': 'דרום', 'omy': 'מערב', 'poz': 'מזרח',
+        'ANIP': 'קומה', 'ANN': 'מרום', 'AMP': 'קומה',
+        'poy': 'צפון', 'pom': 'דרום', 'omy': 'מערב', 'poz': 'מזרח',
         'floor': 'קומה', 'column': 'עמוד', 'wall': 'קיר',
         'beam': 'קורה', 'slab': 'רצפה', 'roof': 'גג',
-        'N1z;N': 'צפון', 'ONT': '', 'Ns': '',
-        'naan': '', 'pon': '', 'p¥ln': '',
+        'N1z;N': 'צפון', 'NAM': 'מרום', 'ONT': '', 'Ns': '',
+        'naan': '', 'pon': '', 'p¥ln': '', 'NSS:': '',
     }
     for eng, heb in replacements.items():
         text = text.replace(eng, heb)
-    text = re.sub(r'[><%\*\|\.\,\"\']', '', text)
+    text = re.sub(r'[><%\*\|\.\,\"\'\?]', '', text)
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
@@ -41,7 +41,7 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
     }
 
     try:
-        pages = convert_from_bytes(pdf_bytes, dpi=150)  # הורדת DPI לעיבוד מהיר יותר
+        pages = convert_from_bytes(pdf_bytes, dpi=200)
         text = pytesseract.image_to_string(pages[0])
         lines = text.split('\n')
 
@@ -70,12 +70,16 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
                 if first_data_line is None:
                     first_data_line = i
 
+        # חלק המבנה - מחפש בטווח רחב לפני הדגימות
         if first_data_line is not None:
-            for offset in range(4, 8):
+            for offset in range(3, 15):
                 idx = first_data_line - offset
                 if idx >= 0:
                     candidate = lines[idx].strip()
-                    if candidate and re.search(r'\d+', candidate) and len(candidate) > 5:
+                    # שורה עם מספר ומילות מבנה
+                    if (candidate and re.search(r'\d+', candidate) and
+                        len(candidate) > 4 and
+                        re.search(r'nmi|nmp|Tiny|ANIP|AMP|ANN|NAM|floor|column|oy|ANT', candidate, re.IGNORECASE)):
                         data["חלק המבנה הנוצק"] = translate_building_part(candidate)
                         break
 
@@ -97,33 +101,27 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
     return data
 
 
-# עיבוד קובץ בודד - מהיר!
 @app.route('/process-one', methods=['POST'])
 def process_one():
     if 'file' not in request.files:
         return jsonify({"error": "לא הועלה קובץ"}), 400
-
     file = request.files['file']
     if not file.filename.endswith('.pdf'):
         return jsonify({"error": "קובץ לא תקין"}), 400
-
     pdf_bytes = file.read()
     result = extract_data_from_pdf_bytes(pdf_bytes, file.filename)
     return jsonify(result)
 
 
-# הורדת אקסל מרשימת תוצאות
 @app.route('/export', methods=['POST'])
 def export_excel():
     data_list = request.json
     if not data_list:
         return jsonify({"error": "אין נתונים"}), 400
-
     df = pd.DataFrame(data_list)
     output = io.BytesIO()
     df.to_excel(output, index=False)
     output.seek(0)
-
     return send_file(
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
