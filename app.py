@@ -20,6 +20,7 @@ def translate_building_part(text):
         'nmi': 'עמוד',
         'nmp': 'עמוד',
         'ANIP': 'קומה',
+        'ANN': 'מרום',
         'poy': 'צפון',
         'pom': 'דרום',
         'omy': 'מערב',
@@ -31,15 +32,16 @@ def translate_building_part(text):
         'slab': 'רצפה',
         'roof': 'גג',
         'stair': 'מדרגות',
-        'ANT': '',
+        'N1z;N': 'צפון',
+        'ONT': '',
         'Ns': '',
-        'N1z;N': '',
         'naan': '',
         'pon': '',
+        'p¥ln': '',
     }
     for eng, heb in replacements.items():
         text = text.replace(eng, heb)
-    # נקה רווחים כפולים
+    text = re.sub(r'[><%\*\|\.\,\"\']', '', text)
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
@@ -60,10 +62,11 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
 
         dates_found = []
         strength_values = []
+        first_data_line = None  # שורת הדגימה הראשונה
 
         for i, line in enumerate(lines):
 
-            # מס' תעודה - 8 ספרות מתחיל ב-20
+            # מס' תעודה
             if not data["מס' תעודה"]:
                 m = re.search(r'\b(20\d{6})\b', line)
                 if m:
@@ -74,21 +77,26 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
             if m:
                 dates_found.append((i, m.group(1)))
 
-            # סוג בטון - כל סוג (30, 40, 50, 60 וכו')
+            # סוג בטון
             if not data["סוג בטון"]:
                 m = re.search(r'\b(\d{2,3})\s*-\s*[2בB]', line)
                 if m and 20 <= int(m.group(1)) <= 120:
                     data["סוג בטון"] = "B-" + m.group(1)
 
-            # חוזק - שורות עם שני מספרים עשרוניים בתחילה
+            # חוזק - שורות דגימות
             m = re.match(r'^(\d{2,3}\.\d)\s+\d{2,3}\.\d', line)
             if m:
                 strength_values.append(float(m.group(1)))
+                if first_data_line is None:
+                    first_data_line = i
 
-            # חלק המבנה - שורה עם מספר קומה/עמוד
-            if not data["חלק המבנה הנוצק"]:
-                if re.search(r'nmi|nmp|Tiny|ANIP|floor|column|ANN|NTz', line, re.IGNORECASE) and re.search(r'\d+', line):
-                    data["חלק המבנה הנוצק"] = translate_building_part(line.strip())
+        # חלק המבנה = השורה 3-4 שורות לפני הדגימה הראשונה
+        if first_data_line is not None:
+            for offset in range(4, 8):
+                candidate_line = lines[first_data_line - offset].strip()
+                if candidate_line and re.search(r'\d+', candidate_line) and len(candidate_line) > 5:
+                    data["חלק המבנה הנוצק"] = translate_building_part(candidate_line)
+                    break
 
         # תאריך יציקה = התאריך השני
         if len(dates_found) >= 2:
@@ -96,8 +104,7 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
         elif len(dates_found) == 1:
             data["תאריך יציקה"] = dates_found[0][1]
 
-        # שיעור חוזק ממוצע - הערך אחרי כל הדגימות
-        # אם 3 דגימות -> ערך 4, אם 4 דגימות -> ערך 5
+        # שיעור חוזק ממוצע
         if len(strength_values) >= 5:
             data["שיעור חוזק ממוצע"] = strength_values[4]
         elif len(strength_values) >= 4:
