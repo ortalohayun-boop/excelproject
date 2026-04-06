@@ -16,28 +16,13 @@ def index():
 
 def translate_building_part(text):
     replacements = {
-        'Tiny': 'קומה',
-        'nmi': 'עמוד',
-        'nmp': 'עמוד',
-        'ANIP': 'קומה',
-        'ANN': 'מרום',
-        'poy': 'צפון',
-        'pom': 'דרום',
-        'omy': 'מערב',
-        'poz': 'מזרח',
-        'floor': 'קומה',
-        'column': 'עמוד',
-        'wall': 'קיר',
-        'beam': 'קורה',
-        'slab': 'רצפה',
-        'roof': 'גג',
-        'stair': 'מדרגות',
-        'N1z;N': 'צפון',
-        'ONT': '',
-        'Ns': '',
-        'naan': '',
-        'pon': '',
-        'p¥ln': '',
+        'Tiny': 'קומה', 'nmi': 'עמוד', 'nmp': 'עמוד',
+        'ANIP': 'קומה', 'ANN': 'מרום', 'poy': 'צפון',
+        'pom': 'דרום', 'omy': 'מערב', 'poz': 'מזרח',
+        'floor': 'קומה', 'column': 'עמוד', 'wall': 'קיר',
+        'beam': 'קורה', 'slab': 'רצפה', 'roof': 'גג',
+        'N1z;N': 'צפון', 'ONT': '', 'Ns': '',
+        'naan': '', 'pon': '', 'p¥ln': '',
     }
     for eng, heb in replacements.items():
         text = text.replace(eng, heb)
@@ -56,55 +41,49 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
     }
 
     try:
-        pages = convert_from_bytes(pdf_bytes, dpi=200)
+        pages = convert_from_bytes(pdf_bytes, dpi=150)  # הורדת DPI לעיבוד מהיר יותר
         text = pytesseract.image_to_string(pages[0])
         lines = text.split('\n')
 
         dates_found = []
         strength_values = []
-        first_data_line = None  # שורת הדגימה הראשונה
+        first_data_line = None
 
         for i, line in enumerate(lines):
-
-            # מס' תעודה
             if not data["מס' תעודה"]:
                 m = re.search(r'\b(20\d{6})\b', line)
                 if m:
                     data["מס' תעודה"] = m.group(1)
 
-            # תאריכים
             m = re.search(r'(\d{2}/\d{2}/20\d{2})', line)
             if m:
                 dates_found.append((i, m.group(1)))
 
-            # סוג בטון
             if not data["סוג בטון"]:
                 m = re.search(r'\b(\d{2,3})\s*-\s*[2בB]', line)
                 if m and 20 <= int(m.group(1)) <= 120:
                     data["סוג בטון"] = "B-" + m.group(1)
 
-            # חוזק - שורות דגימות
             m = re.match(r'^(\d{2,3}\.\d)\s+\d{2,3}\.\d', line)
             if m:
                 strength_values.append(float(m.group(1)))
                 if first_data_line is None:
                     first_data_line = i
 
-        # חלק המבנה = השורה 3-4 שורות לפני הדגימה הראשונה
         if first_data_line is not None:
             for offset in range(4, 8):
-                candidate_line = lines[first_data_line - offset].strip()
-                if candidate_line and re.search(r'\d+', candidate_line) and len(candidate_line) > 5:
-                    data["חלק המבנה הנוצק"] = translate_building_part(candidate_line)
-                    break
+                idx = first_data_line - offset
+                if idx >= 0:
+                    candidate = lines[idx].strip()
+                    if candidate and re.search(r'\d+', candidate) and len(candidate) > 5:
+                        data["חלק המבנה הנוצק"] = translate_building_part(candidate)
+                        break
 
-        # תאריך יציקה = התאריך השני
         if len(dates_found) >= 2:
             data["תאריך יציקה"] = dates_found[1][1]
         elif len(dates_found) == 1:
             data["תאריך יציקה"] = dates_found[0][1]
 
-        # שיעור חוזק ממוצע
         if len(strength_values) >= 5:
             data["שיעור חוזק ממוצע"] = strength_values[4]
         elif len(strength_values) >= 4:
@@ -118,22 +97,27 @@ def extract_data_from_pdf_bytes(pdf_bytes, filename):
     return data
 
 
-@app.route('/process', methods=['POST'])
-def process_pdfs():
-    if 'files' not in request.files:
-        return jsonify({"error": "לא הועלו קבצים"}), 400
+# עיבוד קובץ בודד - מהיר!
+@app.route('/process-one', methods=['POST'])
+def process_one():
+    if 'file' not in request.files:
+        return jsonify({"error": "לא הועלה קובץ"}), 400
 
-    files = request.files.getlist('files')
-    data_list = []
+    file = request.files['file']
+    if not file.filename.endswith('.pdf'):
+        return jsonify({"error": "קובץ לא תקין"}), 400
 
-    for file in files:
-        if file.filename.endswith('.pdf'):
-            pdf_bytes = file.read()
-            extracted = extract_data_from_pdf_bytes(pdf_bytes, file.filename)
-            data_list.append(extracted)
+    pdf_bytes = file.read()
+    result = extract_data_from_pdf_bytes(pdf_bytes, file.filename)
+    return jsonify(result)
 
+
+# הורדת אקסל מרשימת תוצאות
+@app.route('/export', methods=['POST'])
+def export_excel():
+    data_list = request.json
     if not data_list:
-        return jsonify({"error": "לא נמצאו קבצי PDF"}), 400
+        return jsonify({"error": "אין נתונים"}), 400
 
     df = pd.DataFrame(data_list)
     output = io.BytesIO()
